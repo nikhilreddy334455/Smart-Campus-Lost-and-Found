@@ -70,12 +70,28 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
+// Lazy DB initialization check for serverless environments (e.g. Vercel)
+let isDbReady = false;
+app.use(async (_req: Request, _res: Response, next: NextFunction) => {
+  if (!isDbReady) {
+    try {
+      await DbService.initDb();
+      await DbService.seedDemoData();
+      isDbReady = true;
+    } catch (e) {
+      console.warn('[DB] Lazy init notice:', e instanceof Error ? e.message : e);
+    }
+  }
+  next();
+});
+
 // Start Server & Initialize Database
-async function startServer() {
+export async function startServer() {
   try {
     await DbService.initDb();
     // Auto-seed sample data if empty so UI has immediate rich content
     await DbService.seedDemoData();
+    isDbReady = true;
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`====================================================`);
@@ -91,4 +107,9 @@ async function startServer() {
   }
 }
 
-startServer();
+// Only start the HTTP listener if not running in a serverless environment like Vercel
+if (process.env.VERCEL !== '1') {
+  startServer();
+}
+
+export default app;

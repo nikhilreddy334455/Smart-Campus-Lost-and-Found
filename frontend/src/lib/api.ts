@@ -1,6 +1,6 @@
 import { Item, MatchItem, Stats } from './types';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export async function fetchItems(params?: { type?: string; category?: string; search?: string }): Promise<Item[]> {
   const query = new URLSearchParams();

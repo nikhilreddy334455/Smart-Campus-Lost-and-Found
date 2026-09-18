@@ -89,3 +89,29 @@ cd frontend && npm run dev
 * Frontend: `http://localhost:5173`
 * Backend API: `http://localhost:3000`
 * Health Check: `http://localhost:3000/health`
+
+---
+
+## 🌐 How to Deploy to Vercel
+
+The application is fully pre-configured for Vercel with `vercel.json` and serverless database integration.
+
+### Step 1: Set Up Cloud PostgreSQL Database (Free)
+Because Vercel is a serverless platform, it connects to a hosted PostgreSQL instance:
+1. Go to **[Neon.tech](https://neon.tech)** (or Supabase) and create a free account.
+2. Create a new project (e.g., `smart-campus-lost-found`).
+3. Copy your connection string (`postgresql://username:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require`).
+4. In the Neon SQL Editor, paste and run the contents of [`database/schema.sql`](database/schema.sql) (the backend will also auto-verify tables on first run).
+
+### Step 2: Deploy on Vercel
+1. Go to **[vercel.com](https://vercel.com)** and sign in with your GitHub account.
+2. Click **"Add New..."** -> **"Project"**.
+3. Select your repository: **`Smart-Campus-Lost-and-Found`**.
+4. Configure the **Environment Variables** in Vercel:
+   * `DATABASE_URL`: Your Neon/Supabase PostgreSQL connection string.
+   * `GEMINI_API_KEY`: Your Google Gemini API key from [Google AI Studio](https://aistudio.google.com/).
+   * `NODE_ENV`: `production`
+5. Click **"Deploy"**.
+
+Vercel will automatically build the Vite React frontend and route `/api/*` to the serverless Express backend. Your app will be live with an SSL-enabled `.vercel.app` URL!
+

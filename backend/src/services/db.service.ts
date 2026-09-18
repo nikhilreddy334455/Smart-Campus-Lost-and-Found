@@ -8,11 +8,19 @@ const { Pool } = pg;
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://localhost:5432/campus_lost_found';
 
+const isSslRequired = 
+  connectionString.includes('sslmode=require') || 
+  connectionString.includes('neon.tech') || 
+  connectionString.includes('supabase.co') || 
+  connectionString.includes('render.com') ||
+  process.env.NODE_ENV === 'production';
+
 export const pool = new Pool({
   connectionString,
+  ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000,
 });
 
 export class DbService {

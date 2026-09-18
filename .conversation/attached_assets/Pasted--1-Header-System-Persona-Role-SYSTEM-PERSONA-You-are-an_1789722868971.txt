@@ -1,0 +1,336 @@
+# 1. Header & System Persona Role
+
+**SYSTEM PERSONA:** You are an elite AI Systems Architect and Principal Full-Stack Engineer. You possess deep expertise in React.js, Node.js, PostgreSQL, and integrating Google's latest Gemini AI models via the `@google/genai` SDK.
+**TASK:** Your sole objective is to write the complete, production-ready codebase for the application described below. You will execute this end-to-end without leaving placeholders, stubbing complex logic, or requiring human intervention to complete structural elements. Write clean, modular, and extensively documented code.
+
+---
+
+# 2. Core Mission Directive
+
+Build an AI-powered "Smart Campus Lost & Found" system. The application must completely automate the tedious process of reconnecting students with their lost items by ingesting multimodal data (images and text) and utilizing LLM reasoning to identify likely matches between "Lost" and "Found" item databases.
+
+---
+
+# 3. Product Goal
+
+To provide a centralized, highly intelligent campus platform where users can submit reports of items they have lost or found. The system leverages Gemini's multimodal capabilities to analyze photos, descriptions, locations, and times, automatically calculating a "Match Confidence Score" and generating a human-readable explanation for why two items are considered a potential match.
+
+---
+
+# 4. Mandatory Features
+
+* **Multimodal Reporting:** Users can submit lost or found items including a photo, text description, location, and time of the event.
+* **Automated AI Matching Engine:** A backend service that automatically compares new "Lost" items against existing "Found" items (and vice versa) using Gemini.
+* **Confidence Scoring & Explanation:** The AI must output a precise confidence score (0-100%) and a short, logical explanation detailing *why* the items match based on visual and textual features.
+* **Search & Discovery:** A dedicated interface allowing users to manually search, filter, and discover relevant lost and found reports.
+* **Match Dashboard:** A dedicated view for a specific item showing its top AI-generated matches sorted by confidence score.
+
+---
+
+# 5. Technology Requirements
+
+* **Frontend:** React.js (Vite), Tailwind CSS for styling.
+* **Backend:** Node.js with Express.js.
+* **Database:** PostgreSQL (Replit Postgres or standard PostgreSQL).
+* **AI Integration:** `@google/genai` SDK (Strictly use the new SDK, not the legacy generative-ai package). Use the `gemini-2.5-flash` model for multimodal processing and fast reasoning.
+* **Validation:** Zod for runtime type checking and environment variable validation.
+* **Language:** TypeScript (Strict mode enabled) across the entire stack.
+
+---
+
+# 6. Application Pages (Routes)
+
+1. **`/` (Home/Dashboard):** Overview of recent lost and found items, quick stats, and primary Call-To-Action buttons.
+2. **`/report/lost`:** Form to submit a newly lost item (requires image, text, location, time).
+3. **`/report/found`:** Form to submit a newly found item (requires image, text, location, time).
+4. **`/search`:** Feed of all items with filters (Type, Category, Date Range) and a text search bar.
+5. **`/item/:id`:** Detailed view of a specific item, displaying its data, uploaded image, and an auto-generated section showing "Top Potential Matches" with AI confidence scores and explanations.
+
+---
+
+# 7. User Flow
+
+1. **Submission:** A user loses a blue water bottle. They navigate to `/report/lost`, upload a photo of a similar bottle, describe it, and submit the time and location they lost it.
+2. **Processing:** The backend saves the item to PostgreSQL, then triggers the AI Matching Engine in the background.
+3. **Matching:** The AI queries the database for recent "Found" items in the same general category, compares the multimodal features of the new item against the found items, and saves the match results.
+4. **Resolution:** The user is redirected to `/item/:id`, where they see a "95% Match" with a found item, along with the AI's explanation: *"Both items are 32oz blue Hydroflasks with a distinct dent on the base; locations (Library and Quad) are adjacent."*
+
+---
+
+# 8. Target Domains & Categorization
+
+To optimize database querying before AI analysis, items must be strictly categorized into the following domains:
+
+* `Electronics` (Phones, Laptops, Earbuds, Chargers)
+* `Clothing` (Jackets, Hats, Scarves)
+* `IDs & Wallets` (Campus IDs, Credit Cards, Purses)
+* `Books & Stationery` (Textbooks, Notebooks, Pencil Cases)
+* `Keys` (Dorm keys, Car keys)
+* `Accessories` (Glasses, Jewelry, Watches)
+* `Miscellaneous` (Water bottles, Umbrellas, everything else)
+
+---
+
+# 9. Form & Advisory Configuration
+
+Both "Lost" and "Found" submission forms must enforce the following schema:
+
+* **Report Type:** Radio or Select (`lost` | `found`)
+* **Category:** Select dropdown (from the Target Domains above)
+* **Title:** String (e.g., "Blue Hydroflask")
+* **Description:** Textarea (Detailed description, defining marks)
+* **Image URL/Upload:** File upload or URL string (Required for multimodal AI analysis)
+* **Location:** String (Building, room, or campus landmark)
+* **Event Date/Time:** Datetime picker
+* **Contact Info:** Email or phone (String)
+
+---
+
+# 10. Database Schema (Production SQL for PostgreSQL)
+
+```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    report_type VARCHAR(10) NOT NULL CHECK (report_type IN ('lost', 'found')),
+    category VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    location VARCHAR(255) NOT NULL,
+    event_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    contact_info VARCHAR(255) NOT NULL,
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'resolved')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE item_matches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    lost_item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    found_item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    confidence_score INTEGER NOT NULL CHECK (confidence_score >= 0 AND confidence_score <= 100),
+    explanation TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(lost_item_id, found_item_id)
+);
+
+CREATE INDEX idx_items_report_type ON items(report_type);
+CREATE INDEX idx_items_category ON items(category);
+CREATE INDEX idx_matches_lost_id ON item_matches(lost_item_id);
+CREATE INDEX idx_matches_found_id ON item_matches(found_item_id);
+
+```
+
+---
+
+# 11. Row Level Security (RLS) / Data Isolation Rules
+
+* Ensure all database queries use parameterized inputs to prevent SQL injection.
+* If implementing standard PostgreSQL without an auth layer, ensure that updates or deletions of items require a verification token or are restricted. (For this MVP, assume public read/write, but strict payload validation via Zod).
+* The `item_matches` table must only be written to by the backend AI service, never directly from a client request.
+
+---
+
+# 12. Backend API Routes
+
+* `GET /api/items`: Fetch items with optional query params `?type=lost&category=Electronics`.
+* `GET /api/items/:id`: Fetch a single item by UUID.
+* `POST /api/items`: Create a new item. **Crucial:** After saving to the DB, this route must asynchronously trigger the `AI Matching Engine` before returning the `201 Created` response.
+* `GET /api/items/:id/matches`: Fetch AI-generated matches for a specific item, sorted by `confidence_score` DESC.
+* `POST /api/trigger-match/:id`: Manual trigger to run the AI matching algorithm for a specific item ID against the database.
+
+---
+
+# 13. Gemini SDK Setup & Server-Side Security
+
+* **Dependency:** `npm install @google/genai`
+* **Initialization:**
+```typescript
+import { GoogleGenAI } from '@google/genai';
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+```
+
+
+* **Security:** The AI matching logic and API key must reside entirely on the Node.js backend. The frontend must never communicate with Google's APIs directly.
+* **Model:** Use `gemini-2.5-flash` for all operations. Pass image URLs as inline data or utilize the File API if downloading locally first.
+
+---
+
+# 14. AI System Prompt
+
+Configure the Gemini model with the following system instructions:
+
+```text
+You are an expert Lost & Found Matching AI for a smart campus system. Your primary directive is to analyze two items (one 'Lost', one 'Found') and determine the probability that they are the exact same physical object.
+You must be highly analytical. Consider visual characteristics from images (color, wear and tear, branding), textual descriptions, and the logic of time and location (e.g., an item cannot be found before it was lost).
+Be objective and conservative in your scoring. Only assign a score above 85% if there are highly specific unique identifiers present in both.
+
+```
+
+---
+
+# 15. Detailed AI Prompts (with required JSON Schemas)
+
+When comparing a newly submitted item against candidates in the database, use `gemini-2.5-flash` with the `responseSchema` configuration to guarantee JSON output.
+
+**User Prompt Payload:**
+
+```text
+Compare the following LOST item with the FOUND item.
+
+LOST ITEM:
+Title: {lost.title}
+Description: {lost.description}
+Location: {lost.location}
+Time: {lost.event_time}
+Image URL: {lost.image_url}
+
+FOUND ITEM:
+Title: {found.title}
+Description: {found.description}
+Location: {found.location}
+Time: {found.event_time}
+Image URL: {found.image_url}
+
+Analyze the visual and textual data. Calculate a confidence score (0-100) and provide a concise explanation of your reasoning.
+
+```
+
+**Required JSON Schema Configuration (`responseSchema`):**
+
+```json
+{
+  "type": "OBJECT",
+  "properties": {
+    "confidence_score": {
+      "type": "INTEGER",
+      "description": "Probability from 0 to 100 that these two records represent the exact same item."
+    },
+    "explanation": {
+      "type": "STRING",
+      "description": "A 2-3 sentence logical explanation of why they match or do not match, referencing specific visual or textual details."
+    }
+  },
+  "required": ["confidence_score", "explanation"]
+}
+
+```
+
+---
+
+# 16. Zod Validation Requirements
+
+All API inputs must be strictly validated.
+
+```typescript
+import { z } from 'zod';
+
+export const ItemSchema = z.object({
+  report_type: z.enum(['lost', 'found']),
+  category: z.string().min(1),
+  title: z.string().min(3).max(100),
+  description: z.string().min(10).max(1000),
+  image_url: z.string().url(),
+  location: z.string().min(2).max(150),
+  event_time: z.string().datetime(),
+  contact_info: z.string().min(3)
+});
+
+```
+
+---
+
+# 17. Frontend Components List
+
+Build these specific React components using Tailwind CSS:
+
+* `Layout.tsx`: Main wrapper with campus branding and navigation bar.
+* `ItemCard.tsx`: Displays an item thumbnail, title, location, time, and a badge indicating "Lost" or "Found".
+* `MatchScoreBadge.tsx`: A visual indicator (Red/Yellow/Green) based on the `confidence_score` (e.g., Green for >80%).
+* `ReportForm.tsx`: Reusable form for both Lost and Found submissions, utilizing React Hook Form + Zod resolver.
+* `MatchList.tsx`: Renders the AI matches and explanations inside the item detail view.
+* `SearchBar.tsx`: Input field and dropdown filters for the Search page.
+
+---
+
+# 18. Security Requirements
+
+* **Database:** Use parameterized SQL queries strictly (`pg` library with `$1, $2` syntax).
+* **Payload Limits:** Configure Express to reject payloads larger than 5MB to prevent DoS.
+* **Error Handling:** Never leak database stack traces to the frontend. Map all backend errors to standard HTTP status codes with generic messages.
+* **CORS:** Restrict CORS origins strictly to the frontend URL.
+
+---
+
+# 19. Environment Variables Template
+
+Provide a `.env.example` file:
+
+```env
+# Backend Server
+PORT=3000
+NODE_ENV=development
+
+# PostgreSQL Database
+DATABASE_URL=postgresql://user:password@localhost:5432/campus_lost_found
+
+# Google Gemini API
+GEMINI_API_KEY=your_gemini_api_key_here
+
+```
+
+---
+
+# 20. Suggested Folder Structure
+
+```text
+/
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── lib/ (api clients, utils)
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── package.json
+│   └── tailwind.config.js
+├── backend/
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── services/ (ai.service.ts, db.service.ts)
+│   │   ├── schemas/ (zod schemas)
+│   │   └── server.ts
+│   └── package.json
+├── database/
+│   └── schema.sql
+└── .env
+
+```
+
+---
+
+# 21. Implementation Phases
+
+* **Phase 1: Foundation.** Initialize Vite (React) and Node/Express. Set up PostgreSQL schema, connect the database, and write basic CRUD routes for Items.
+* **Phase 2: AI Integration.** Implement the `@google/genai` SDK in `backend/src/services/ai.service.ts`. Write the matching logic that triggers after an item is created. Parse the structured output and save to `item_matches`.
+* **Phase 3: Frontend Build.** Build the React UI, form handling with Zod, and data fetching for the Dashboard and Search pages.
+* **Phase 4: Match Visualization.** Complete the Item Detail page (`/item/:id`) to display the AI matches gracefully, showing the explanation and confidence score prominently.
+
+---
+
+# 22. Acceptance Criteria
+
+* The application starts with standard `npm run dev` commands for both frontend and backend without crashing.
+* A user can successfully submit a "Lost" report with an image URL, which is written to PostgreSQL.
+* The backend automatically queries the AI with the structured JSON schema and writes a valid confidence score and explanation to the DB.
+* The frontend correctly parses and displays the AI matches in a visually distinct, readable format on the item details page.
+* All forms reject invalid data via Zod schema enforcement.
+
+---
+
+# 23. Final Instruction to Coding Agent
+
+You have the complete blueprint. Do not explain what you are going to do. Do not skip any steps, stub out any database logic, or leave standard boilerplate incomplete. Generate the full, production-ready codebase for the "Smart Campus Lost & Found" system immediately, adhering strictly to every requirement outlined above. Begin execution now.

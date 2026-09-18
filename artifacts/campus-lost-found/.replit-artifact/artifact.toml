@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Campus Lost & Found"
+description = "A campus lost and found app where students report items, discover active reports, and review intelligent potential matches between lost and found belongings."
+version = "1.0.0"
+id = "artifacts/campus-lost-found"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25167
+
+[services.development]
+run = "pnpm --filter @workspace/campus-lost-found run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/campus-lost-found", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/campus-lost-found/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25167"
+BASE_PATH = "/"

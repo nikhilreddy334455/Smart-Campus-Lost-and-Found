@@ -1,6 +1,6 @@
-# [Project name]
+# Campus Lost & Found
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A campus-wide reporting and discovery app that helps students reconnect with lost belongings through structured reports and AI-assisted matching.
 
 ## Run & Operate
 
@@ -10,6 +10,7 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Required secret: `GEMINI_API_KEY` — server-side Gemini matching key
 
 ## Stack
 
@@ -22,23 +23,35 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/campus-lost-found` — React/Vite web app with dashboard, report forms, search, and item detail routes
+- `artifacts/api-server/src/routes/items.ts` — item, dashboard, and match API routes
+- `artifacts/api-server/src/lib/matching.ts` — background Gemini comparison service and conservative fallback
+- `lib/db/src/schema/items.ts` — Drizzle schema for reports and match records
+- `lib/api-spec/openapi.yaml` — source of truth for API contracts and generated client hooks
+- `artifacts/campus-lost-found/src/index.css` — campus wayfinding theme tokens and visual system
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The browser talks to the shared `/api` service through generated React Query hooks; it never calls Gemini directly.
+- The public API uses snake_case while Drizzle keeps camelCase properties internally, so route serializers normalize the boundary.
+- Matching runs asynchronously after report creation and can be re-triggered from an item detail page.
+- Images are represented as URLs in the MVP; the matching service downloads remote image bytes only on the server when available.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Students can report lost or found items with category, description, image URL, location, time, and contact details.
+- The overview shows active lost/found totals and recent reports.
+- Search supports text, report type, and category filters.
+- Item detail pages show AI-generated potential matches, explanations, confidence scores, and resolve actions.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+No additional preferences recorded.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The API server and web app are separate managed workflows; restart the matching workflow after server changes.
+- Run API codegen after changing `lib/api-spec/openapi.yaml`.
 
 ## Pointers
 

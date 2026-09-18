@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Smart Campus Lost & Found API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: items
+    description: Lost and found item reports
+  - name: dashboard
+    description: Dashboard summaries
 paths:
   /healthz:
     get:
@@ -24,7 +28,217 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List lost and found reports
+      parameters:
+        - $ref: "#/components/parameters/ReportType"
+        - $ref: "#/components/parameters/Category"
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+        - name: date_from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: date_to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Matching reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      operationId: createItem
+      tags: [items]
+      summary: Create a lost or found report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemInput"
+      responses:
+        "201":
+          description: Created report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /items/{id}:
+    get:
+      operationId: getItem
+      tags: [items]
+      summary: Get a single report
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Report details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateItem
+      tags: [items]
+      summary: Update a report status
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemUpdate"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /items/{id}/matches:
+    get:
+      operationId: listItemMatches
+      tags: [items]
+      summary: List AI-generated matches for a report
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Potential matches sorted by confidence
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ItemMatch"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /trigger-match/{id}:
+    post:
+      operationId: triggerMatch
+      tags: [items]
+      summary: Re-run AI matching for a report
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "204":
+          description: Matching queued
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get overview counts
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+  /dashboard/recent:
+    get:
+      operationId: getRecentItems
+      tags: [dashboard]
+      summary: Get recently submitted reports
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            default: 6
+      responses:
+        "200":
+          description: Recently submitted reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
 components:
+  parameters:
+    ItemId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReportType:
+      name: type
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [lost, found]
+    Category:
+      name: category
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/Category"
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Report not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServerError:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +247,153 @@ components:
           type: string
       required:
         - status
+    Category:
+      type: string
+      enum:
+        - Electronics
+        - Clothing
+        - IDs & Wallets
+        - Books & Stationery
+        - Keys
+        - Accessories
+        - Miscellaneous
+    ItemStatus:
+      type: string
+      enum: [active, resolved]
+    Item:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        report_type:
+          type: string
+          enum: [lost, found]
+        category:
+          $ref: "#/components/schemas/Category"
+        title:
+          type: string
+        description:
+          type: string
+        image_url:
+          type: string
+        location:
+          type: string
+        event_time:
+          type: string
+          format: date-time
+        contact_info:
+          type: string
+        status:
+          $ref: "#/components/schemas/ItemStatus"
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - report_type
+        - category
+        - title
+        - description
+        - image_url
+        - location
+        - event_time
+        - contact_info
+        - status
+        - created_at
+    ItemInput:
+      type: object
+      properties:
+        report_type:
+          type: string
+          enum: [lost, found]
+        category:
+          $ref: "#/components/schemas/Category"
+        title:
+          type: string
+          minLength: 3
+          maxLength: 100
+        description:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        image_url:
+          type: string
+          format: uri
+        location:
+          type: string
+          minLength: 2
+          maxLength: 150
+        event_time:
+          type: string
+          format: date-time
+        contact_info:
+          type: string
+          minLength: 3
+          maxLength: 255
+      required:
+        - report_type
+        - category
+        - title
+        - description
+        - image_url
+        - location
+        - event_time
+        - contact_info
+    ItemUpdate:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/ItemStatus"
+      required:
+        - status
+    ItemMatch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        lost_item_id:
+          type: string
+          format: uuid
+        found_item_id:
+          type: string
+          format: uuid
+        confidence_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        explanation:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        matched_item:
+          $ref: "#/components/schemas/Item"
+      required:
+        - id
+        - lost_item_id
+        - found_item_id
+        - confidence_score
+        - explanation
+        - created_at
+        - matched_item
+    DashboardStats:
+      type: object
+      properties:
+        active_lost:
+          type: integer
+        active_found:
+          type: integer
+        resolved:
+          type: integer
+        total_reports:
+          type: integer
+      required: [active_lost, active_found, resolved, total_reports]
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
 

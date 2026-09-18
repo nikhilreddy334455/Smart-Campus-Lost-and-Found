@@ -1,0 +1,1 @@
+- [API contract boundaries](api-contract-boundaries.md) — generated response names can collide; serialize Drizzle records at the API boundary.

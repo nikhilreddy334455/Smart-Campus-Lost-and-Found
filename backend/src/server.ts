@@ -44,12 +44,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+app.get(['/health', '/api/health'], (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', service: 'campus-lost-found-backend', timestamp: new Date().toISOString() });
 });
 
-// API routes
+// API routes (support both /api and direct serverless invocation)
 app.use('/api', itemRoutes);
+app.use('/', itemRoutes);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
